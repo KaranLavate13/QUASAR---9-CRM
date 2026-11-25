@@ -1,0 +1,6 @@
+{
+  "name": "Vetra CRM",
+  "description": "AI-native, Google-integrated liquid glass CRM with custom AI dashboards, Gmail inbox, chronological task feed, team messaging, audit logs, and 100 lateral-thinking games.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

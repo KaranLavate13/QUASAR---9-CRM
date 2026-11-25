@@ -1,0 +1,334 @@
+{
+  "entities": {
+    "UserPublic": {
+      "title": "UserPublic",
+      "description": "Non-PII public employee profile visible across the organization directory, feed, and team chat.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "roleTitle": { "type": "string", "maxLength": 100 },
+        "department": { "type": "string", "maxLength": 80 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "photoUrl": { "type": "string", "maxLength": 200000 },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "roleTitle", "department", "bio", "photoUrl", "visibility", "isActive", "createdAt", "updatedAt"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Isolated PII and private user preferences strictly readable and writable only by the profile owner.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "theme": { "type": "string", "enum": ["ios27", "studio", "horizon", "prism", "google", "graphite", "emerald", "titanium"] },
+        "colorMode": { "type": "string", "enum": ["dark", "light"] },
+        "systemInstructions": { "type": "string", "maxLength": 4000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "phone", "theme", "colorMode", "systemInstructions", "createdAt", "updatedAt"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "CRM customer/account contact with deduplication keys and lifecycle status.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "company": { "type": "string", "maxLength": 120 },
+        "contactEmail": { "type": "string", "maxLength": 254 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "lifecycleStage": { "type": "string", "enum": ["lead", "mql", "sql", "customer", "churn_risk"] },
+        "buyingRole": { "type": "string", "enum": ["unspecified", "champion", "economic_buyer", "technical_evaluator", "influencer", "blocker"] },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "visibility": { "type": "string", "enum": ["org", "private"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "company", "contactEmail", "phone", "lifecycleStage", "notes", "visibility", "createdAt", "updatedAt"]
+    },
+    "Deal": {
+      "title": "Deal",
+      "description": "CRM sales pipeline opportunity with stage, weighted value, probability, linked Drive docs, and staleness tracking.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "company": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "contactName": { "type": "string", "maxLength": 120 },
+        "value": { "type": "number" },
+        "probability": { "type": "number" },
+        "stage": { "type": "string", "enum": ["lead", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"] },
+        "expectedCloseDate": { "type": "string", "maxLength": 32 },
+        "linkedDocs": { "type": "array" },
+        "visibility": { "type": "string", "enum": ["org", "private"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "title", "company", "contactName", "value", "probability", "stage", "expectedCloseDate", "visibility", "createdAt", "updatedAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Employee task tracked across pending, working, and completed states.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assigneeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["pending", "working", "completed"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+        "dueDate": { "type": "string", "maxLength": 32 },
+        "relatedDealTitle": { "type": "string", "maxLength": 160 },
+        "visibility": { "type": "string", "enum": ["org", "private"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "assigneeName", "title", "description", "status", "priority", "dueDate", "relatedDealTitle", "visibility", "createdAt", "updatedAt"]
+    },
+    "FeedPost": {
+      "title": "FeedPost",
+      "description": "Chronological Instagram-style feed post for daily task completions and employee photo updates.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "authorPhotoUrl": { "type": "string", "maxLength": 200000 },
+        "postType": { "type": "string", "enum": ["task_completion", "photo_post", "milestone"] },
+        "caption": { "type": "string", "minLength": 1, "maxLength": 1500 },
+        "imageUrl": { "type": "string", "maxLength": 250000 },
+        "taskTitle": { "type": "string", "maxLength": 200 },
+        "likesCount": { "type": "number" },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "authorName", "authorPhotoUrl", "postType", "caption", "imageUrl", "taskTitle", "likesCount", "visibility", "createdAt", "updatedAt"]
+    },
+    "TeamMessage": {
+      "title": "TeamMessage",
+      "description": "Internal text message between connected employees or in the organization-wide channel.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "recipientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "recipientId", "text", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable timestamped record of every user action across the CRM.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "category": { "type": "string", "enum": ["auth", "crm", "meet", "calendar", "drive", "task", "feed", "gmail", "message", "ai", "command", "profile", "game", "theme"] },
+        "action": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "target": { "type": "string", "maxLength": 200 },
+        "details": { "type": "string", "maxLength": 600 },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "actorName", "category", "action", "target", "details", "visibility", "createdAt"]
+    },
+    "AiMemory": {
+      "title": "AiMemory",
+      "description": "Auto-learned or user-authored AI memory item injected into Gemini prompts.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "content": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "source": { "type": "string", "enum": ["auto", "manual"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "content", "source", "active", "createdAt", "updatedAt"]
+    },
+    "AiSkill": {
+      "title": "AiSkill",
+      "description": "Custom reusable AI skill and instruction playbook.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "domain": { "type": "string", "maxLength": 80 },
+        "instructions": { "type": "string", "minLength": 1, "maxLength": 2500 },
+        "enabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "name", "domain", "instructions", "enabled", "createdAt", "updatedAt"]
+    },
+    "AiDashboard": {
+      "title": "AiDashboard",
+      "description": "Saved AI-generated custom report and dashboard specification.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 1500 },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "kpis": { "type": "array" },
+        "charts": { "type": "array" },
+        "recommendations": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "title", "prompt", "summary", "kpis", "charts", "recommendations", "createdAt", "updatedAt"]
+    },
+    "GameProgress": {
+      "title": "GameProgress",
+      "description": "Tracks an employee's completed games and scores across the 100 Smart Games lab.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "gameId": { "type": "number" },
+        "completed": { "type": "boolean" },
+        "bestScore": { "type": "number" },
+        "attempts": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "gameId", "completed", "bestScore", "attempts", "updatedAt"]
+    },
+    "MeetingRoom": {
+      "title": "MeetingRoom",
+      "description": "Org-visible live Google Meet room created via Google Meet API or Calendar.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hostName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "relatedDealTitle": { "type": "string", "maxLength": 160 },
+        "meetingUri": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "meetingCode": { "type": "string", "maxLength": 60 },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "hostName", "title", "relatedDealTitle", "meetingUri", "meetingCode", "visibility", "createdAt"]
+    },
+    "HandoffDossier": {
+      "title": "HandoffDossier",
+      "description": "AI-compiled Sales-to-Onboarding Handoff Dossier for Customer Success.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "dealId": { "type": "string", "maxLength": 128 },
+        "dealTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "company": { "type": "string", "maxLength": 120 },
+        "dealValue": { "type": "number" },
+        "executiveSummary": { "type": "string", "maxLength": 2000 },
+        "stakeholders": { "type": "array" },
+        "promisedDeliverables": { "type": "array" },
+        "implementationRisks": { "type": "array" },
+        "onboardingTasks": { "type": "array" },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "dealId", "dealTitle", "company", "dealValue", "executiveSummary", "stakeholders", "promisedDeliverables", "implementationRisks", "onboardingTasks", "visibility", "createdAt"]
+    },
+    "NewsLike": {
+      "title": "NewsLike",
+      "description": "Org-visible like reaction on a live Google News article.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "articleId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "articleId", "authorName", "visibility", "createdAt"]
+    },
+    "NewsComment": {
+      "title": "NewsComment",
+      "description": "Org-visible comment on a live Google News article.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "articleId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "authorPhotoUrl": { "type": "string", "maxLength": 200000 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "visibility": { "type": "string", "enum": ["org"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "articleId", "authorName", "authorPhotoUrl", "text", "visibility", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users_public/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublic" },
+      "description": "Public employee directory profiles (non-PII)."
+    },
+    "/users_private/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Owner-only private user profile PII and AI system instructions."
+    },
+    "/contacts/{contactId}": {
+      "schema": { "$ref": "#/entities/Contact" },
+      "description": "CRM contacts and accounts."
+    },
+    "/deals/{dealId}": {
+      "schema": { "$ref": "#/entities/Deal" },
+      "description": "CRM sales deals across pipeline stages."
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Employee pending, working, and completed tasks."
+    },
+    "/feed_posts/{postId}": {
+      "schema": { "$ref": "#/entities/FeedPost" },
+      "description": "Chronological home feed posts and daily task completions."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/TeamMessage" },
+      "description": "Real-time internal employee messages."
+    },
+    "/meeting_rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/MeetingRoom" },
+      "description": "Org-visible Google Meet rooms."
+    },
+    "/handoff_dossiers/{dossierId}": {
+      "schema": { "$ref": "#/entities/HandoffDossier" },
+      "description": "Org-visible Sales-to-Onboarding handoff dossiers."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only timestamped audit logs for every user action."
+    },
+    "/ai_memory/{memoryId}": {
+      "schema": { "$ref": "#/entities/AiMemory" },
+      "description": "Per-user AI memory entries."
+    },
+    "/ai_skills/{skillId}": {
+      "schema": { "$ref": "#/entities/AiSkill" },
+      "description": "Per-user custom AI skills and playbooks."
+    },
+    "/ai_dashboards/{dashboardId}": {
+      "schema": { "$ref": "#/entities/AiDashboard" },
+      "description": "Per-user saved AI-generated dashboards and reports."
+    },
+    "/game_progress/{progressId}": {
+      "schema": { "$ref": "#/entities/GameProgress" },
+      "description": "Per-user completion records for the 100 Smart Games."
+    },
+    "/news_likes/{likeId}": {
+      "schema": { "$ref": "#/entities/NewsLike" },
+      "description": "Org-visible likes on Google News Instagram-style feed items."
+    },
+    "/news_comments/{commentId}": {
+      "schema": { "$ref": "#/entities/NewsComment" },
+      "description": "Org-visible comments on Google News Instagram-style feed items."
+    }
+  }
+}

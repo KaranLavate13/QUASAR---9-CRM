@@ -1,0 +1,579 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1 / Phase 4: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Security Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'lavatekaran13@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBoundedString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // Validation Blueprints (Pillar 2: Called on BOTH create and update)
+    function isValidUserPublic(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'roleTitle', 'department', 'bio', 'photoUrl', 'visibility', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'roleTitle', 'department', 'bio', 'photoUrl', 'visibility', 'isActive', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && isBoundedString(data.displayName, 1, 120)
+        && isBoundedString(data.roleTitle, 0, 100)
+        && isBoundedString(data.department, 0, 80)
+        && isBoundedString(data.bio, 0, 500)
+        && isBoundedString(data.photoUrl, 0, 200000)
+        && data.visibility == 'org'
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'theme', 'colorMode', 'systemInstructions', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phone', 'theme', 'colorMode', 'systemInstructions', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && isBoundedString(data.email, 3, 254)
+        && isBoundedString(data.phone, 0, 40)
+        && data.theme in ['ios27', 'studio', 'horizon', 'prism', 'google', 'graphite', 'emerald', 'titanium']
+        && data.colorMode in ['dark', 'light']
+        && isBoundedString(data.systemInstructions, 0, 4000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'company', 'contactEmail', 'phone', 'lifecycleStage', 'notes', 'visibility', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'company', 'contactEmail', 'phone', 'lifecycleStage', 'buyingRole', 'notes', 'visibility', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && isBoundedString(data.name, 1, 120)
+        && isBoundedString(data.company, 0, 120)
+        && isBoundedString(data.contactEmail, 0, 254)
+        && isBoundedString(data.phone, 0, 40)
+        && data.lifecycleStage in ['lead', 'mql', 'sql', 'customer', 'churn_risk']
+        && (!('buyingRole' in data) || data.buyingRole in ['unspecified', 'champion', 'economic_buyer', 'technical_evaluator', 'influencer', 'blocker'])
+        && isBoundedString(data.notes, 0, 2000)
+        && data.visibility in ['org', 'private']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDeal(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'company', 'contactName', 'value', 'probability', 'stage', 'expectedCloseDate', 'visibility', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'company', 'contactName', 'value', 'probability', 'stage', 'expectedCloseDate', 'linkedDocs', 'visibility', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && isBoundedString(data.title, 1, 160)
+        && isBoundedString(data.company, 1, 120)
+        && isBoundedString(data.contactName, 0, 120)
+        && data.value is number && data.value >= 0 && data.value <= 1000000000
+        && data.probability is number && data.probability >= 0 && data.probability <= 100
+        && data.stage in ['lead', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost']
+        && isBoundedString(data.expectedCloseDate, 0, 32)
+        && (!('linkedDocs' in data) || (data.linkedDocs is list && data.linkedDocs.size() <= 12 && (data.linkedDocs.size() == 0 || data.linkedDocs[0] is map)))
+        && data.visibility in ['org', 'private']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['ownerId', 'assigneeName', 'title', 'description', 'status', 'priority', 'dueDate', 'relatedDealTitle', 'visibility', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'assigneeName', 'title', 'description', 'status', 'priority', 'dueDate', 'relatedDealTitle', 'visibility', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && isBoundedString(data.assigneeName, 1, 120)
+        && isBoundedString(data.title, 1, 200)
+        && isBoundedString(data.description, 0, 1500)
+        && data.status in ['pending', 'working', 'completed']
+        && data.priority in ['low', 'medium', 'high', 'urgent']
+        && isBoundedString(data.dueDate, 0, 32)
+        && isBoundedString(data.relatedDealTitle, 0, 160)
+        && data.visibility in ['org', 'private']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFeedPost(data) {
+      return data.keys().hasAll(['ownerId', 'authorName', 'authorPhotoUrl', 'postType', 'caption', 'imageUrl', 'taskTitle', 'likesCount', 'visibility', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'authorName', 'authorPhotoUrl', 'postType', 'caption', 'imageUrl', 'taskTitle', 'likesCount', 'visibility', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && isBoundedString(data.authorName, 1, 120)
+        && isBoundedString(data.authorPhotoUrl, 0, 200000)
+        && data.postType in ['task_completion', 'photo_post', 'milestone']
+        && isBoundedString(data.caption, 1, 1500)
+        && isBoundedString(data.imageUrl, 0, 250000)
+        && isBoundedString(data.taskTitle, 0, 200)
+        && data.likesCount is number && data.likesCount >= 0 && data.likesCount <= 1000000
+        && data.visibility == 'org'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTeamMessage(data) {
+      return data.keys().hasAll(['senderId', 'senderName', 'recipientId', 'text', 'createdAt'])
+        && data.keys().hasOnly(['senderId', 'senderName', 'recipientId', 'text', 'createdAt'])
+        && isValidId(data.senderId)
+        && data.senderId == request.auth.uid
+        && isBoundedString(data.senderName, 1, 120)
+        && isValidId(data.recipientId)
+        && isBoundedString(data.text, 1, 2000)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['ownerId', 'actorName', 'category', 'action', 'target', 'details', 'visibility', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'actorName', 'category', 'action', 'target', 'details', 'visibility', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isBoundedString(data.actorName, 1, 120)
+        && data.category in ['auth', 'crm', 'meet', 'calendar', 'drive', 'task', 'feed', 'gmail', 'message', 'ai', 'command', 'profile', 'game', 'theme']
+        && isBoundedString(data.action, 1, 120)
+        && isBoundedString(data.target, 0, 200)
+        && isBoundedString(data.details, 0, 600)
+        && data.visibility == 'org'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAiMemory(data) {
+      return data.keys().hasAll(['ownerId', 'content', 'source', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'content', 'source', 'active', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isBoundedString(data.content, 1, 1000)
+        && data.source in ['auto', 'manual']
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAiSkill(data) {
+      return data.keys().hasAll(['ownerId', 'name', 'domain', 'instructions', 'enabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'name', 'domain', 'instructions', 'enabled', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isBoundedString(data.name, 1, 120)
+        && isBoundedString(data.domain, 0, 80)
+        && isBoundedString(data.instructions, 1, 2500)
+        && data.enabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAiDashboard(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'prompt', 'summary', 'kpis', 'charts', 'recommendations', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'prompt', 'summary', 'kpis', 'charts', 'recommendations', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isBoundedString(data.title, 1, 160)
+        && isBoundedString(data.prompt, 1, 1500)
+        && isBoundedString(data.summary, 0, 2000)
+        && data.kpis is list && data.kpis.size() <= 12 && (data.kpis.size() == 0 || data.kpis[0] is map)
+        && data.charts is list && data.charts.size() <= 8 && (data.charts.size() == 0 || data.charts[0] is map)
+        && data.recommendations is list && data.recommendations.size() <= 12 && (data.recommendations.size() == 0 || data.recommendations[0] is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidGameProgress(data) {
+      return data.keys().hasAll(['ownerId', 'gameId', 'completed', 'bestScore', 'attempts', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'gameId', 'completed', 'bestScore', 'attempts', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.gameId is number && data.gameId >= 1 && data.gameId <= 100
+        && data.completed is bool
+        && data.bestScore is number && data.bestScore >= 0 && data.bestScore <= 100000
+        && data.attempts is number && data.attempts >= 1 && data.attempts <= 100000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMeetingRoom(data) {
+      return data.keys().hasAll(['ownerId', 'hostName', 'title', 'relatedDealTitle', 'meetingUri', 'meetingCode', 'visibility', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'hostName', 'title', 'relatedDealTitle', 'meetingUri', 'meetingCode', 'visibility', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isBoundedString(data.hostName, 1, 120)
+        && isBoundedString(data.title, 1, 160)
+        && isBoundedString(data.relatedDealTitle, 0, 160)
+        && isBoundedString(data.meetingUri, 1, 500)
+        && isBoundedString(data.meetingCode, 0, 60)
+        && data.visibility == 'org'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidHandoffDossier(data) {
+      return data.keys().hasAll(['ownerId', 'dealId', 'dealTitle', 'company', 'dealValue', 'executiveSummary', 'stakeholders', 'promisedDeliverables', 'implementationRisks', 'onboardingTasks', 'visibility', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'dealId', 'dealTitle', 'company', 'dealValue', 'executiveSummary', 'stakeholders', 'promisedDeliverables', 'implementationRisks', 'onboardingTasks', 'visibility', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isBoundedString(data.dealId, 0, 128)
+        && isBoundedString(data.dealTitle, 1, 160)
+        && isBoundedString(data.company, 0, 120)
+        && data.dealValue is number && data.dealValue >= 0 && data.dealValue <= 1000000000
+        && isBoundedString(data.executiveSummary, 0, 2000)
+        && data.stakeholders is list && data.stakeholders.size() <= 10 && (data.stakeholders.size() == 0 || data.stakeholders[0] is string)
+        && data.promisedDeliverables is list && data.promisedDeliverables.size() <= 10 && (data.promisedDeliverables.size() == 0 || data.promisedDeliverables[0] is string)
+        && data.implementationRisks is list && data.implementationRisks.size() <= 10 && (data.implementationRisks.size() == 0 || data.implementationRisks[0] is string)
+        && data.onboardingTasks is list && data.onboardingTasks.size() <= 12 && (data.onboardingTasks.size() == 0 || data.onboardingTasks[0] is map)
+        && data.visibility == 'org'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNewsLike(data) {
+      return data.keys().hasAll(['ownerId', 'articleId', 'authorName', 'visibility', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'articleId', 'authorName', 'visibility', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.articleId)
+        && data.articleId.size() <= 64
+        && isBoundedString(data.authorName, 1, 120)
+        && data.visibility == 'org'
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNewsComment(data) {
+      return data.keys().hasAll(['ownerId', 'articleId', 'authorName', 'authorPhotoUrl', 'text', 'visibility', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'articleId', 'authorName', 'authorPhotoUrl', 'text', 'visibility', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.articleId)
+        && data.articleId.size() <= 64
+        && isBoundedString(data.authorName, 1, 120)
+        && isBoundedString(data.authorPhotoUrl, 0, 200000)
+        && isBoundedString(data.text, 1, 1000)
+        && data.visibility == 'org'
+        && data.createdAt is timestamp;
+    }
+
+    // 1. Public Employee Directory (Non-PII)
+    match /users_public/{userId} {
+      allow get: if isVerified() && isValidId(userId) && existing().visibility == 'org';
+      allow list: if isVerified() && existing().visibility == 'org' && existing().isActive == true;
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserPublic(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserPublic(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'roleTitle', 'department', 'bio', 'photoUrl', 'isActive', 'updatedAt'])
+        );
+      allow delete: if false;
+    }
+
+    // 2. Private User Profile & Preferences (Strict PII Isolation)
+    match /users_private/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserPrivate(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserPrivate(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'theme', 'colorMode', 'systemInstructions', 'updatedAt'])
+        );
+      allow delete: if false;
+    }
+
+    // 3. CRM Contacts
+    match /contacts/{contactId} {
+      allow get: if isVerified() && isValidId(contactId) && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow list: if isVerified() && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow create: if isVerified()
+        && isValidId(contactId)
+        && isValidContact(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(contactId)
+        && isValidContact(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'company', 'contactEmail', 'phone', 'lifecycleStage', 'buyingRole', 'notes', 'visibility', 'updatedAt'])) ||
+          (existing().visibility == 'org' && incoming().diff(existing()).affectedKeys().hasOnly(['lifecycleStage', 'buyingRole', 'notes', 'updatedAt']))
+        );
+      allow delete: if isVerified() && isValidId(contactId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 4. CRM Deals (with Terminal State Locking on closed_won / closed_lost)
+    match /deals/{dealId} {
+      allow get: if isVerified() && isValidId(dealId) && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow list: if isVerified() && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow create: if isVerified()
+        && isValidId(dealId)
+        && isValidDeal(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(dealId)
+        && isValidDeal(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (!(existing().stage in ['closed_won', 'closed_lost']) && existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'company', 'contactName', 'value', 'probability', 'stage', 'expectedCloseDate', 'linkedDocs', 'visibility', 'updatedAt'])) ||
+          (!(existing().stage in ['closed_won', 'closed_lost']) && existing().visibility == 'org' && incoming().diff(existing()).affectedKeys().hasOnly(['stage', 'probability', 'linkedDocs', 'updatedAt']))
+        );
+      allow delete: if isVerified() && isValidId(dealId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 5. Employee Tasks (with Terminal State Locking on completed)
+    match /tasks/{taskId} {
+      allow get: if isVerified() && isValidId(taskId) && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow list: if isVerified() && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow create: if isVerified()
+        && isValidId(taskId)
+        && isValidTask(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(taskId)
+        && isValidTask(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().status != 'completed' && existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'status', 'priority', 'dueDate', 'relatedDealTitle', 'visibility', 'updatedAt']))
+        );
+      allow delete: if isVerified() && isValidId(taskId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 6. Chronological Home Feed Posts
+    match /feed_posts/{postId} {
+      allow get: if isVerified() && isValidId(postId) && existing().visibility == 'org';
+      allow list: if isVerified() && existing().visibility == 'org';
+      allow create: if isVerified()
+        && isValidId(postId)
+        && isValidFeedPost(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().likesCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(postId)
+        && isValidFeedPost(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'updatedAt'])) ||
+          (incoming().likesCount == existing().likesCount + 1 && incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'updatedAt']))
+        );
+      allow delete: if isVerified() && isValidId(postId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 7. Team Messaging (Channel + Private DM Isolation, Immutable Once Sent)
+    match /messages/{messageId} {
+      allow get: if isVerified() && isValidId(messageId) && (existing().senderId == request.auth.uid || existing().recipientId == request.auth.uid || existing().recipientId == 'org');
+      allow list: if isVerified() && (existing().senderId == request.auth.uid || existing().recipientId == request.auth.uid || existing().recipientId == 'org');
+      allow create: if isVerified()
+        && isValidId(messageId)
+        && isValidTeamMessage(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerified() && isValidId(messageId) && (existing().senderId == request.auth.uid || isAdmin());
+    }
+
+    // 8. Append-Only Timestamped Audit Logs
+    match /audit_logs/{logId} {
+      allow get: if isVerified() && isValidId(logId) && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow list: if isVerified() && (existing().ownerId == request.auth.uid || existing().visibility == 'org');
+      allow create: if isVerified()
+        && isValidId(logId)
+        && isValidAuditLog(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // 9. Per-User AI Memory
+    match /ai_memory/{memoryId} {
+      allow get: if isVerified() && isValidId(memoryId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerified() && existing().ownerId == request.auth.uid;
+      allow create: if isVerified()
+        && isValidId(memoryId)
+        && isValidAiMemory(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(memoryId)
+        && isValidAiMemory(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['content', 'active', 'updatedAt'])
+        );
+      allow delete: if isVerified() && isValidId(memoryId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 10. Per-User AI Skills
+    match /ai_skills/{skillId} {
+      allow get: if isVerified() && isValidId(skillId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerified() && existing().ownerId == request.auth.uid;
+      allow create: if isVerified()
+        && isValidId(skillId)
+        && isValidAiSkill(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(skillId)
+        && isValidAiSkill(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'domain', 'instructions', 'enabled', 'updatedAt'])
+        );
+      allow delete: if isVerified() && isValidId(skillId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 11. Per-User Saved AI Dashboards
+    match /ai_dashboards/{dashboardId} {
+      allow get: if isVerified() && isValidId(dashboardId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerified() && existing().ownerId == request.auth.uid;
+      allow create: if isVerified()
+        && isValidId(dashboardId)
+        && isValidAiDashboard(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(dashboardId)
+        && isValidAiDashboard(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'summary', 'kpis', 'charts', 'recommendations', 'updatedAt'])
+        );
+      allow delete: if isVerified() && isValidId(dashboardId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 12. Per-User 100 Smart Games Progress
+    match /game_progress/{progressId} {
+      allow get: if isVerified() && isValidId(progressId) && existing().ownerId == request.auth.uid;
+      allow list: if isVerified() && existing().ownerId == request.auth.uid;
+      allow create: if isVerified()
+        && isValidId(progressId)
+        && isValidGameProgress(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified()
+        && isValidId(progressId)
+        && isValidGameProgress(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().gameId == existing().gameId
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'bestScore', 'attempts', 'updatedAt'])
+        );
+      allow delete: if isVerified() && isValidId(progressId) && existing().ownerId == request.auth.uid;
+    }
+
+    // 13. Org-Visible Google Meet Spaces
+    match /meeting_rooms/{roomId} {
+      allow get: if isVerified() && isValidId(roomId) && existing().visibility == 'org';
+      allow list: if isVerified() && existing().visibility == 'org';
+      allow create: if isVerified()
+        && isValidId(roomId)
+        && isValidMeetingRoom(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerified() && isValidId(roomId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 14. Org-Visible Sales-to-Onboarding Handoff Dossiers
+    match /handoff_dossiers/{dossierId} {
+      allow get: if isVerified() && isValidId(dossierId) && existing().visibility == 'org';
+      allow list: if isVerified() && existing().visibility == 'org';
+      allow create: if isVerified()
+        && isValidId(dossierId)
+        && isValidHandoffDossier(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerified() && isValidId(dossierId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 15. Org-Visible Google News Likes (Immutable toggle via create/delete)
+    match /news_likes/{likeId} {
+      allow get: if isVerified() && isValidId(likeId) && existing().visibility == 'org';
+      allow list: if isVerified() && existing().visibility == 'org';
+      allow create: if isVerified()
+        && isValidId(likeId)
+        && isValidNewsLike(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerified() && isValidId(likeId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // 16. Org-Visible Google News Comments (Immutable once posted, owner/admin delete)
+    match /news_comments/{commentId} {
+      allow get: if isVerified() && isValidId(commentId) && existing().visibility == 'org';
+      allow list: if isVerified() && existing().visibility == 'org';
+      allow create: if isVerified()
+        && isValidId(commentId)
+        && isValidNewsComment(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerified() && isValidId(commentId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+  }
+}
